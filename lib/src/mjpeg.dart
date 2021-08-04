@@ -33,6 +33,8 @@ class _MjpegStateNotifier extends ChangeNotifier {
 /// A Mjpeg.
 class Mjpeg extends HookWidget {
   final String stream;
+  final String method;
+  final String? body;
   final BoxFit? fit;
   final double? width;
   final double? height;
@@ -49,6 +51,8 @@ class Mjpeg extends HookWidget {
     this.height,
     this.fit,
     required this.stream,
+    this.method = 'GET',
+    this.body,
     this.error,
     this.loading,
     this.headers = const {},
@@ -61,7 +65,7 @@ class Mjpeg extends HookWidget {
     final state = useMemoized(() => _MjpegStateNotifier());
     final visible = useListenable(state);
     final errorState = useState<List<dynamic>?>(null);
-    final manager = useMemoized(() => _StreamManager(stream, isLive && visible.visible, headers, timeout), [stream, isLive, visible.visible, timeout]);
+    final manager = useMemoized(() => _StreamManager(stream, method, body, isLive && visible.visible, headers, timeout), [stream, isLive, visible.visible, timeout]);
     final key = useMemoized(() => UniqueKey(), [manager]);
 
     useEffect(() {
@@ -117,6 +121,8 @@ class _StreamManager {
   static const _eoi = 0xD9;
 
   final String stream;
+  final String method;
+  final String? body;
   final bool isLive;
   final Duration _timeout;
   final Map<String, String> headers;
@@ -124,7 +130,7 @@ class _StreamManager {
   // ignore: cancel_subscriptions
   StreamSubscription? _subscription;
 
-  _StreamManager(this.stream, this.isLive, this.headers, this._timeout);
+  _StreamManager(this.stream, this.method, this.body, this.isLive, this.headers, this._timeout);
 
   Future<void> dispose() async {
     if (_subscription != null) {
@@ -142,8 +148,11 @@ class _StreamManager {
 
   void updateStream(BuildContext context, ValueNotifier<MemoryImage?> image, ValueNotifier<List<dynamic>?> errorState) async {
     try {
-      final request = Request("GET", Uri.parse(stream));
+      final request = Request(method, Uri.parse(stream));
       request.headers.addAll(headers);
+      if (body != null) {
+        request.body = body!;
+      }
       final response = await _httpClient.send(request).timeout(_timeout); //timeout is to prevent process to hang forever in some case
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
